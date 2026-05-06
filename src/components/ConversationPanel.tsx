@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, KeyboardEvent } from 'react';
 import Image from 'next/image';
 import { useAppStore } from '@/store';
 import { runSimulation, callRealBroker } from '@/lib/simulation';
-import { Message } from '@/lib/types';
+import { Message, MessageAttribution, AgentType } from '@/lib/types';
 
 export function ConversationPanel() {
   const messages = useAppStore((s) => s.messages);
@@ -175,7 +175,7 @@ function MessageBubble({ message }: { message: Message }) {
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[88%] rounded-2xl rounded-br-sm px-4 py-3 text-base leading-relaxed whitespace-pre-wrap bg-blue-600 text-white">
+        <div className="max-w-[88%] rounded-2xl rounded-br-sm px-4 py-3 text-[17px] leading-relaxed whitespace-pre-wrap bg-blue-600 text-white">
           {message.content}
         </div>
       </div>
@@ -196,12 +196,33 @@ function MessageBubble({ message }: { message: Message }) {
       </div>
 
       {/* Bubble */}
-      <div className="max-w-[84%] rounded-2xl rounded-tl-sm px-4 py-3 text-base leading-relaxed whitespace-pre-wrap bg-gray-50 text-gray-900 border border-gray-200">
-        {message.agentName && (
-          <p className="text-xs text-blue-500 font-semibold mb-2 tracking-wide uppercase">{message.agentName}</p>
+      <div className="max-w-[84%] rounded-2xl rounded-tl-sm px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200">
+        <p className="text-[17px] leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        {message.attribution && message.attribution.length > 0 && (
+          <SkillBadge attribution={message.attribution} />
         )}
-        {message.content}
       </div>
+    </div>
+  );
+}
+
+const TYPE_PILL: Record<AgentType, string> = {
+  agent:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  mcp:    'bg-amber-50   text-amber-700   border-amber-200',
+  broker: 'bg-blue-50    text-blue-700    border-blue-200',
+  llm:    'bg-violet-50  text-violet-700  border-violet-200',
+  user:   'bg-sky-50     text-sky-700     border-sky-200',
+};
+
+function SkillBadge({ attribution }: { attribution: MessageAttribution[] }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap mt-3 pt-2.5 border-t border-gray-200">
+      <span className="text-xs text-gray-400 font-medium shrink-0">Skill used</span>
+      {attribution.map((a, i) => (
+        <span key={i} className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${TYPE_PILL[a.type] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+          {a.name}
+        </span>
+      ))}
     </div>
   );
 }
