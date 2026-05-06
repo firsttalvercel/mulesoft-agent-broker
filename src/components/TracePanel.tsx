@@ -22,14 +22,14 @@ export function TracePanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
-        <span className="text-xs text-gray-500 font-medium">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200">
+        <span className="text-sm font-semibold text-gray-600">
           {traceEvents.length} event{traceEvents.length !== 1 ? 's' : ''}
         </span>
         {traceEvents.length > 0 && (
           <button
             onClick={clearTrace}
-            className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
             Clear
           </button>
@@ -61,12 +61,12 @@ function TraceRow({ event }: { event: TraceEvent }) {
   const time = event.timestamp.toTimeString().slice(0, 8);
 
   return (
-    <div className="flex items-start gap-2 text-xs hover:bg-gray-50 rounded-lg px-2 py-1.5 transition-colors">
-      <span className="text-gray-400 shrink-0 pt-px tabular-nums">{time}</span>
-      <span className={`shrink-0 font-bold pt-px w-11 ${style.color}`}>{style.label}</span>
-      <div className="min-w-0">
-        <span className="text-gray-400">[{event.agentName}] </span>
-        <span className="text-gray-700 break-words leading-relaxed">{event.message}</span>
+    <div className="flex items-start gap-2.5 text-[13px] hover:bg-gray-50 rounded-lg px-2 py-2 transition-colors">
+      <span className="text-gray-400 shrink-0 tabular-nums leading-relaxed">{time}</span>
+      <span className={`shrink-0 font-bold w-12 leading-relaxed ${style.color}`}>{style.label}</span>
+      <div className="min-w-0 leading-relaxed">
+        <span className="text-gray-500 font-medium">[{event.agentName}]</span>{' '}
+        <span className="text-gray-700 break-words">{event.message}</span>
       </div>
     </div>
   );
