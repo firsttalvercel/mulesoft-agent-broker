@@ -5,39 +5,13 @@ import { useAppStore } from '@/store';
 import { runSimulation, callRealBroker } from '@/lib/simulation';
 import { Message } from '@/lib/types';
 
-const SKILLS = [
-  {
-    label: 'Check Inventory',
-    prompt: 'Check current inventory levels and alert me if any item is below threshold.',
-  },
-  {
-    label: 'Retrieve Customer Info',
-    prompt: 'Retrieve account details and recent activity for our top customers.',
-  },
-  {
-    label: 'Analyze Billing Issue',
-    prompt: 'Analyze recent billing discrepancies and provide a detailed summary.',
-  },
-  {
-    label: 'Schedule Maintenance',
-    prompt: 'Schedule a maintenance window for the energy grid and notify relevant teams.',
-  },
-  {
-    label: 'Market Prices',
-    prompt: 'Search for current EU energy market prices and latest regulatory updates.',
-  },
-  {
-    label: 'Open Orders',
-    prompt: 'List all open ERP orders sorted by priority and due date.',
-  },
-];
-
 export function ConversationPanel() {
   const messages = useAppStore((s) => s.messages);
   const isProcessing = useAppStore((s) => s.isProcessing);
   const currentStep = useAppStore((s) => s.currentStep);
   const addMessage = useAppStore((s) => s.addMessage);
   const brokerUrl = useAppStore((s) => s.brokerUrl);
+  const skills = useAppStore((s) => s.skills);
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -64,29 +38,43 @@ export function ConversationPanel() {
     }
   }
 
+  // Build prompt from skill — use examples[0] if available, otherwise skill name as prompt
+  function skillPrompt(skill: { name: string; description?: string; examples?: string[] }): string {
+    if (skill.examples && skill.examples.length > 0) return skill.examples[0];
+    return skill.description ?? skill.name;
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="pt-3 space-y-4">
-            {/* Skills grid */}
-            <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Agent Skills</p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {SKILLS.map((skill) => (
-                  <button
-                    key={skill.label}
-                    onClick={() => handleSend(skill.prompt)}
-                    disabled={isProcessing}
-                    className="text-left text-xs text-gray-700 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg px-3 py-2 transition-colors disabled:opacity-50 leading-tight"
-                  >
-                    {skill.label}
-                  </button>
-                ))}
+            {skills.length > 0 ? (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                  Agent Skills ({skills.length})
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {skills.map((skill) => (
+                    <button
+                      key={skill.id}
+                      onClick={() => handleSend(skillPrompt(skill))}
+                      disabled={isProcessing}
+                      title={skill.description}
+                      className="text-left text-xs text-gray-700 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg px-3 py-2 transition-colors disabled:opacity-50 leading-tight"
+                    >
+                      {skill.name}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-
+            ) : (
+              <div className="text-center pt-6">
+                <p className="text-xs text-gray-400">No skills available from this broker.</p>
+                <p className="text-[11px] text-gray-300 mt-1">Type a prompt below to interact directly.</p>
+              </div>
+            )}
             <p className="text-[11px] text-gray-400 text-center pt-1">
               or type a custom prompt below
             </p>
@@ -114,18 +102,18 @@ export function ConversationPanel() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Skills quick-fill (when conversation is active) */}
-      {messages.length > 0 && (
+      {/* Skills quick-fill chips — shown when conversation is active and skills exist */}
+      {messages.length > 0 && skills.length > 0 && (
         <div className="px-3 pt-2 pb-1">
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-            {SKILLS.map((skill) => (
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {skills.map((skill) => (
               <button
-                key={skill.label}
-                onClick={() => setInput(skill.prompt)}
+                key={skill.id}
+                onClick={() => setInput(skillPrompt(skill))}
                 disabled={isProcessing}
                 className="shrink-0 text-[11px] text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
-                {skill.label}
+                {skill.name}
               </button>
             ))}
           </div>
@@ -139,7 +127,7 @@ export function ConversationPanel() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Ask the Energy Broker..."
+            placeholder="Ask the broker..."
             rows={1}
             disabled={isProcessing}
             className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 resize-none outline-none min-h-[24px] max-h-[96px] leading-6 disabled:opacity-50"

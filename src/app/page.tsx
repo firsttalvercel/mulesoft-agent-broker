@@ -18,6 +18,8 @@ export default function Home() {
   const setBrokerLoaded = useAppStore((s) => s.setBrokerLoaded);
   const setBrokerUrl = useAppStore((s) => s.setBrokerUrl);
   const setAgents = useAppStore((s) => s.setAgents);
+  const setBrokerMetadata = useAppStore((s) => s.setBrokerMetadata);
+  const setSkills = useAppStore((s) => s.setSkills);
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth);
 
   const isLive = brokerUrl.trim().length > 0;
@@ -66,12 +68,19 @@ export default function Home() {
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="7" cy="7" r="2.5" fill="white" />
-              <path d="M7 1V3M7 11V13M1 7H3M11 7H13M2.93 2.93L4.34 4.34M9.66 9.66L11.07 11.07M11.07 2.93L9.66 4.34M4.34 9.66L2.93 11.07" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </div>
+          {/* MuleSoft logo mark */}
+          <svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MuleSoft" className="shrink-0">
+            <rect width="36" height="36" rx="8" fill="#00A1E0" />
+            <circle cx="18" cy="18" r="4" fill="white" />
+            <circle cx="9" cy="9" r="2.5" fill="white" opacity="0.85" />
+            <circle cx="27" cy="9" r="2.5" fill="white" opacity="0.85" />
+            <circle cx="9" cy="27" r="2.5" fill="white" opacity="0.85" />
+            <circle cx="27" cy="27" r="2.5" fill="white" opacity="0.85" />
+            <line x1="11" y1="11" x2="15.5" y2="15.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
+            <line x1="25" y1="11" x2="20.5" y2="15.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
+            <line x1="11" y1="25" x2="15.5" y2="20.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
+            <line x1="25" y1="25" x2="20.5" y2="20.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
+          </svg>
           <div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-sm font-bold leading-none" style={{ color: '#00A1E0' }}>MuleSoft</span>
@@ -111,7 +120,7 @@ export default function Home() {
           </div>
 
           <button
-            onClick={() => { setBrokerLoaded(false); setBrokerUrl(''); setAgents([]); }}
+            onClick={() => { setBrokerLoaded(false); setBrokerUrl(''); setAgents([]); setBrokerMetadata(null); setSkills([]); }}
             className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
           >
             Change

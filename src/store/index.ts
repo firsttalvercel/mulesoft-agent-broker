@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Message, AgentNodeData, TraceEvent, SidebarTab } from '@/lib/types';
+import { Message, AgentNodeData, TraceEvent, SidebarTab, AgentSkill, AgentCard } from '@/lib/types';
 
 interface AppState {
   messages: Message[];
@@ -16,10 +16,14 @@ interface AppState {
   brokerUrl: string;
   brokerLoaded: boolean;
   sidebarWidth: number;
+  brokerMetadata: AgentCard | null;
+  skills: AgentSkill[];
   setAgents: (agents: AgentNodeData[]) => void;
   setBrokerUrl: (url: string) => void;
   setBrokerLoaded: (val: boolean) => void;
   setSidebarWidth: (width: number) => void;
+  setBrokerMetadata: (card: AgentCard | null) => void;
+  setSkills: (skills: AgentSkill[]) => void;
   addMessage: (msg: Omit<Message, 'id' | 'timestamp'>) => void;
   addTraceEvent: (event: Omit<TraceEvent, 'id' | 'timestamp'>) => void;
   setAgentStatus: (agentId: string, status: AgentNodeData['status']) => void;
@@ -50,11 +54,15 @@ export const useAppStore = create<AppState>((set) => ({
   brokerUrl: '',
   brokerLoaded: false,
   sidebarWidth: 320,
+  brokerMetadata: null,
+  skills: [],
 
   setAgents: (agents) => set({ agents }),
   setBrokerUrl: (url) => set({ brokerUrl: url }),
   setBrokerLoaded: (val) => set({ brokerLoaded: val }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
+  setBrokerMetadata: (card) => set({ brokerMetadata: card }),
+  setSkills: (skills) => set({ skills }),
   addMessage: (msg) => set((s) => ({
     messages: [...s.messages, { ...msg, id: crypto.randomUUID(), timestamp: new Date() }],
   })),

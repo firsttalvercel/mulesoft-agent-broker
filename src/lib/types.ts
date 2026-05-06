@@ -4,6 +4,27 @@ export type TraceEventType = 'routing' | 'api_call' | 'response' | 'error';
 export type MessageRole = 'user' | 'agent' | 'system';
 export type SidebarTab = 'conversation' | 'information' | 'settings';
 
+export interface AgentSkill {
+  id: string;
+  name: string;
+  description?: string;
+  tags?: string[];
+  examples?: string[];
+}
+
+export interface AgentCard {
+  name?: string;
+  description?: string;
+  version?: string;
+  url?: string;
+  skills?: AgentSkill[];
+  capabilities?: {
+    streaming?: boolean;
+    pushNotifications?: boolean;
+    stateTransitionHistory?: boolean;
+  };
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
