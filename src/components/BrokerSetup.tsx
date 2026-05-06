@@ -1,77 +1,10 @@
 'use client';
 
 import { useState, KeyboardEvent } from 'react';
+import Image from 'next/image';
 import { useAppStore } from '@/store';
-import { AgentNodeData, AgentCard, AgentSkill } from '@/lib/types';
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Derive a human-readable broker name from the URL path.
- * "/energy-agent-network-demo/" → "Energy Agent Network Demo"
- * Falls back to hostname if no meaningful path segment exists.
- */
-function brokerNameFromUrl(url: string): string {
-  try {
-    const { pathname, hostname } = new URL(url);
-    const segments = pathname.split('/').filter(Boolean);
-    if (segments.length > 0) {
-      return segments[segments.length - 1]
-        .split('-')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-    }
-    return hostname.split('.')[0]
-      .split('-')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  } catch {
-    return 'Broker';
-  }
-}
-
-function guessAgentType(skillName: string): 'agent' | 'mcp' {
-  return /search|google|web|mcp|lookup|browse/i.test(skillName) ? 'mcp' : 'agent';
-}
-
-function skillToNodeName(skillName: string): string {
-  // "Inventory and Distribution Skill" → "Inventory Agent"
-  // "Google Search Skill" → "Google Search Agent"
-  return skillName
-    .replace(/\bskill\b/gi, '')
-    .trim()
-    .replace(/\s{2,}/g, ' ') + ' Agent';
-}
-
-function buildAgentNodes(brokerName: string, skills: AgentSkill[]): AgentNodeData[] {
-  const userNode: AgentNodeData = {
-    id: 'user',
-    name: 'User',
-    status: 'idle',
-    type: 'user',
-    description: 'Initiates queries to the broker',
-  };
-
-  const brokerNode: AgentNodeData = {
-    id: 'broker',
-    name: brokerName,
-    status: 'idle',
-    type: 'broker',
-    description: 'Orchestrates routing between agents',
-  };
-
-  const subAgents: AgentNodeData[] = skills.map((skill, i) => ({
-    id: `skill-${skill.id ?? i}`,
-    name: skillToNodeName(skill.name),
-    status: 'idle',
-    type: guessAgentType(skill.name),
-    description: skill.description ?? skill.name,
-  }));
-
-  return [userNode, brokerNode, ...subAgents];
-}
-
-// ── Component ────────────────────────────────────────────────────────────────
+import { AgentNodeData } from '@/lib/types';
+import { fetchBrokerData } from '@/lib/broker';
 
 export function BrokerSetup() {
   const [url, setUrl] = useState('');
@@ -96,30 +29,17 @@ export function BrokerSetup() {
     setError('');
     setLoading(true);
 
-    // Attempt agent card discovery
-    let agentCard: AgentCard | null = null;
-    try {
-      const res = await fetch(`/api/agent-card?url=${encodeURIComponent(trimmed)}`);
-      if (res.ok) {
-        agentCard = await res.json();
-      }
-    } catch {
-      // Network error — proceed without card
-    }
-
-    const skills: AgentSkill[] = agentCard?.skills ?? [];
-    const brokerName = agentCard?.name ?? brokerNameFromUrl(trimmed);
+    const { agentCard, skills, nodes } = await fetchBrokerData(trimmed);
 
     setBrokerMetadata(agentCard);
     setSkills(skills);
-    setAgents(buildAgentNodes(brokerName, skills));
+    setAgents(nodes);
     setBrokerUrl(trimmed);
     setBrokerLoaded(true);
     setLoading(false);
   }
 
   function handleSimulation() {
-    // Simulation: User + Broker only — no fake agents or skills
     const userNode: AgentNodeData = {
       id: 'user', name: 'User', status: 'idle', type: 'user', description: 'Initiates queries',
     };
@@ -142,15 +62,16 @@ export function BrokerSetup() {
       <div className="w-full max-w-[420px]">
 
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-10">
-          <MuleSoftLogo />
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-bold" style={{ color: '#00A1E0' }}>MuleSoft</span>
-              <span className="text-lg font-semibold text-gray-900">Agent Broker</span>
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">Energy Intelligence Platform</p>
-          </div>
+        <div className="flex flex-col items-center gap-3 mb-10">
+          <Image
+            src="/mulesoft-logo.png"
+            alt="MuleSoft from Salesforce"
+            width={180}
+            height={60}
+            className="object-contain"
+            priority
+          />
+          <p className="text-sm font-semibold text-gray-700 tracking-tight">Agent Broker</p>
         </div>
 
         {/* Card */}
@@ -209,25 +130,5 @@ export function BrokerSetup() {
         </p>
       </div>
     </div>
-  );
-}
-
-// ── MuleSoft Logo SVG ─────────────────────────────────────────────────────────
-
-function MuleSoftLogo() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MuleSoft">
-      <rect width="36" height="36" rx="8" fill="#00A1E0" />
-      {/* Stylized connectivity mark */}
-      <circle cx="18" cy="18" r="4" fill="white" />
-      <circle cx="9" cy="9" r="2.5" fill="white" opacity="0.85" />
-      <circle cx="27" cy="9" r="2.5" fill="white" opacity="0.85" />
-      <circle cx="9" cy="27" r="2.5" fill="white" opacity="0.85" />
-      <circle cx="27" cy="27" r="2.5" fill="white" opacity="0.85" />
-      <line x1="11" y1="11" x2="15.5" y2="15.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-      <line x1="25" y1="11" x2="20.5" y2="15.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-      <line x1="11" y1="25" x2="15.5" y2="20.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-      <line x1="25" y1="25" x2="20.5" y2="20.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-    </svg>
   );
 }

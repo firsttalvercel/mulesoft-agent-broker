@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing url param' }, { status: 400 });
   }
 
-  if (cache.has(brokerUrl)) {
+  const bust = req.nextUrl.searchParams.get('refresh') === '1';
+  if (!bust && cache.has(brokerUrl)) {
     return NextResponse.json(cache.get(brokerUrl));
   }
 

@@ -1,10 +1,12 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import Image from 'next/image';
 import { AgentGraph } from '@/components/AgentGraph';
 import { Sidebar } from '@/components/Sidebar';
 import { BrokerSetup } from '@/components/BrokerSetup';
 import { useAppStore } from '@/store';
+import { fetchBrokerData } from '@/lib/broker';
 
 const MIN_SIDEBAR = 260;
 const MAX_SIDEBAR = 600;
@@ -21,6 +23,10 @@ export default function Home() {
   const setBrokerMetadata = useAppStore((s) => s.setBrokerMetadata);
   const setSkills = useAppStore((s) => s.setSkills);
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth);
+  const clearTrace = useAppStore((s) => s.clearTrace);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
 
   const isLive = brokerUrl.trim().length > 0;
 
@@ -59,6 +65,25 @@ export default function Home() {
     e.preventDefault();
   }
 
+  async function handleRefresh() {
+    if (!brokerUrl || refreshing || isProcessing) return;
+    setRefreshing(true);
+    setRefreshError(false);
+
+    try {
+      const { agentCard, skills, nodes } = await fetchBrokerData(brokerUrl, { bustCache: true });
+      clearTrace();
+      setBrokerMetadata(agentCard);
+      setSkills(skills);
+      setAgents(nodes);
+    } catch {
+      setRefreshError(true);
+      setTimeout(() => setRefreshError(false), 3000);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   if (!brokerLoaded) {
     return <BrokerSetup />;
   }
@@ -66,31 +91,21 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen bg-gray-50 text-gray-900 overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shrink-0 shadow-sm">
+      <header className="flex items-center justify-between px-5 py-2.5 bg-white border-b border-gray-200 shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
-          {/* MuleSoft logo mark */}
-          <svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MuleSoft" className="shrink-0">
-            <rect width="36" height="36" rx="8" fill="#00A1E0" />
-            <circle cx="18" cy="18" r="4" fill="white" />
-            <circle cx="9" cy="9" r="2.5" fill="white" opacity="0.85" />
-            <circle cx="27" cy="9" r="2.5" fill="white" opacity="0.85" />
-            <circle cx="9" cy="27" r="2.5" fill="white" opacity="0.85" />
-            <circle cx="27" cy="27" r="2.5" fill="white" opacity="0.85" />
-            <line x1="11" y1="11" x2="15.5" y2="15.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-            <line x1="25" y1="11" x2="20.5" y2="15.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-            <line x1="11" y1="25" x2="15.5" y2="20.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-            <line x1="25" y1="25" x2="20.5" y2="20.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.7" />
-          </svg>
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-bold leading-none" style={{ color: '#00A1E0' }}>MuleSoft</span>
-              <span className="text-sm font-semibold text-gray-900 leading-none">Agent Broker</span>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-0.5">Energy Intelligence Platform</p>
-          </div>
+          <Image
+            src="/mulesoft-logo.png"
+            alt="MuleSoft from Salesforce"
+            width={110}
+            height={37}
+            className="object-contain shrink-0"
+            priority
+          />
+          <div className="h-4 w-px bg-gray-200 shrink-0" />
+          <span className="text-sm font-semibold text-gray-700 leading-none">Agent Broker</span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {isProcessing && currentStep && (
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping shrink-0" />
@@ -118,6 +133,36 @@ export default function Home() {
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isProcessing ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
             {isProcessing ? 'Processing' : 'Ready'}
           </div>
+
+          {isLive && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || isProcessing}
+              title="Refresh broker metadata"
+              className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-colors ${
+                refreshError
+                  ? 'bg-red-50 border-red-200 text-red-500'
+                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={refreshing ? 'animate-spin' : ''}
+              >
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
+              </svg>
+            </button>
+          )}
 
           <button
             onClick={() => { setBrokerLoaded(false); setBrokerUrl(''); setAgents([]); setBrokerMetadata(null); setSkills([]); }}

@@ -2,7 +2,7 @@ export type AgentStatus = 'idle' | 'active' | 'complete' | 'error';
 export type AgentType = 'broker' | 'agent' | 'mcp' | 'llm' | 'user';
 export type TraceEventType = 'routing' | 'api_call' | 'response' | 'error';
 export type MessageRole = 'user' | 'agent' | 'system';
-export type SidebarTab = 'conversation' | 'information' | 'settings';
+export type SidebarTab = 'conversation' | 'skills' | 'information' | 'settings';
 
 export interface AgentSkill {
   id: string;
