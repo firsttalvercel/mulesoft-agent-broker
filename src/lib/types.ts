@@ -25,12 +25,18 @@ export interface AgentCard {
   };
 }
 
+export interface MessageAttribution {
+  name: string;
+  type: AgentType;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
   content: string;
   agentId?: string;
   agentName?: string;
+  attribution?: MessageAttribution[];
   timestamp: Date;
 }
 

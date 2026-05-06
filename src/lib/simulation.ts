@@ -163,7 +163,13 @@ export async function callRealBroker(
   setAgentStatus(brokerAgent.id, 'complete');
 
   // Step 5 — Response delivered; return path to user
-  addMessage({ role: 'agent', content: responseText, agentId: brokerAgent.id, agentName: brokerAgent.name });
+  addMessage({
+    role: 'agent',
+    content: responseText,
+    agentId: brokerAgent.id,
+    agentName: brokerAgent.name,
+    attribution: targetAgents.map((a) => ({ name: a.name, type: a.type })),
+  });
   addTraceEvent({ type: 'response', agentId: brokerAgent.id, agentName: brokerAgent.name, message: 'Response delivered to user.' });
 
   if (userAgent) {
@@ -257,7 +263,13 @@ export async function runSimulation(userMessage: string, preferredAgentId?: stri
 
   // Step 5 — Response delivered; return path to user
   const finalResponse = synthesize(results, userMessage);
-  addMessage({ role: 'agent', content: finalResponse, agentId: brokerAgent.id, agentName: brokerAgent.name });
+  addMessage({
+    role: 'agent',
+    content: finalResponse,
+    agentId: brokerAgent.id,
+    agentName: brokerAgent.name,
+    attribution: targetAgents.map((a) => ({ name: a.name, type: a.type })),
+  });
   trace('response', brokerAgent.id, brokerAgent.name, 'Final response delivered to user.');
 
   if (userAgent) {

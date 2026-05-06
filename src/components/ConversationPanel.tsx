@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, KeyboardEvent } from 'react';
 import { useAppStore } from '@/store';
 import { runSimulation, callRealBroker } from '@/lib/simulation';
-import { Message } from '@/lib/types';
+import { Message, MessageAttribution, AgentType } from '@/lib/types';
 
 export function ConversationPanel() {
   const messages = useAppStore((s) => s.messages);
@@ -183,7 +183,41 @@ function MessageBubble({ message }: { message: Message }) {
           <p className="text-[11px] text-blue-500 font-semibold mb-1.5 tracking-wide uppercase">{message.agentName}</p>
         )}
         {message.content}
+        {!isUser && message.attribution && message.attribution.length > 0 && (
+          <AttributionBadge attribution={message.attribution} />
+        )}
       </div>
+    </div>
+  );
+}
+
+const TYPE_BADGE: Record<AgentType, string> = {
+  agent:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  mcp:    'bg-amber-50   text-amber-700   border-amber-200',
+  broker: 'bg-blue-50    text-blue-700    border-blue-200',
+  llm:    'bg-violet-50  text-violet-700  border-violet-200',
+  user:   'bg-sky-50     text-sky-700     border-sky-200',
+};
+
+function AttributionBadge({ attribution }: { attribution: MessageAttribution[] }) {
+  const single = attribution.length === 1;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap mt-3 pt-2.5 border-t border-gray-200">
+      <span className="text-[10px] text-gray-400 shrink-0 font-medium">
+        {single ? 'Handled by' : 'Routed through'}
+      </span>
+      {attribution.map((a, i) => (
+        <span key={`${a.name}-${i}`} className="flex items-center gap-1">
+          {i > 0 && (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="text-gray-300 shrink-0">
+              <path d="M2 5h6M5.5 2.5L8 5l-2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${TYPE_BADGE[a.type] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+            {a.name}
+          </span>
+        </span>
+      ))}
     </div>
   );
 }
