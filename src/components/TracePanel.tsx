@@ -36,15 +36,15 @@ export function TracePanel() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0 px-3 py-2 font-mono">
+      <div className="flex-1 overflow-y-auto min-h-0 px-3 py-3 font-mono">
         {traceEvents.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-xs text-gray-400 text-center leading-relaxed">
+            <p className="text-sm text-gray-400 text-center leading-relaxed">
               Trace events appear here when<br />the broker processes a query.
             </p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {traceEvents.map((event) => (
               <TraceRow key={event.id} event={event} />
             ))}
@@ -61,12 +61,12 @@ function TraceRow({ event }: { event: TraceEvent }) {
   const time = event.timestamp.toTimeString().slice(0, 8);
 
   return (
-    <div className="flex items-start gap-2 text-[11px] hover:bg-gray-50 rounded px-1 py-0.5 transition-colors">
-      <span className="text-gray-400 shrink-0 pt-px">{time}</span>
-      <span className={`shrink-0 font-bold pt-px w-10 ${style.color}`}>{style.label}</span>
+    <div className="flex items-start gap-2 text-xs hover:bg-gray-50 rounded-lg px-2 py-1.5 transition-colors">
+      <span className="text-gray-400 shrink-0 pt-px tabular-nums">{time}</span>
+      <span className={`shrink-0 font-bold pt-px w-11 ${style.color}`}>{style.label}</span>
       <div className="min-w-0">
         <span className="text-gray-400">[{event.agentName}] </span>
-        <span className="text-gray-700 break-words">{event.message}</span>
+        <span className="text-gray-700 break-words leading-relaxed">{event.message}</span>
       </div>
     </div>
   );

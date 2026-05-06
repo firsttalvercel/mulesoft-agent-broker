@@ -53,7 +53,7 @@ export const useAppStore = create<AppState>((set) => ({
   verbosity: 'medium',
   brokerUrl: '',
   brokerLoaded: false,
-  sidebarWidth: 320,
+  sidebarWidth: 420,
   brokerMetadata: null,
   skills: [],
 

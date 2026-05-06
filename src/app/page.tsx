@@ -180,12 +180,14 @@ export default function Home() {
           <AgentGraph />
         </div>
 
-        {/* Drag handle */}
+        {/* Drag handle — wider hit area with a centred visual bar */}
         <div
           onMouseDown={handleDragStart}
-          className="w-1 shrink-0 cursor-col-resize rounded-full bg-gray-200 hover:bg-blue-400 active:bg-blue-500 transition-colors self-stretch mx-1"
+          className="w-4 shrink-0 cursor-col-resize self-stretch mx-0 flex items-center justify-center group"
           title="Drag to resize"
-        />
+        >
+          <div className="w-1 h-full rounded-full bg-gray-200 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors" />
+        </div>
 
         {/* Sidebar */}
         <div style={{ width: sidebarWidth }} className="shrink-0 min-w-0">

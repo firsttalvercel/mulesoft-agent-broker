@@ -14,10 +14,29 @@ export function ConversationPanel() {
   const skills = useAppStore((s) => s.skills);
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing]);
+
+  // Auto-expand textarea height to fit content
+  function adjustHeight(el: HTMLTextAreaElement) {
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    adjustHeight(e.target);
+  }
+
+  // Reset height when input is cleared
+  useEffect(() => {
+    if (!input && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  }, [input]);
 
   async function handleSend(text?: string, skillId?: string) {
     const msg = (text ?? input).trim();
@@ -39,7 +58,6 @@ export function ConversationPanel() {
     }
   }
 
-  // Build prompt from skill — use examples[0] if available, otherwise skill name as prompt
   function skillPrompt(skill: { name: string; description?: string; examples?: string[] }): string {
     if (skill.examples && skill.examples.length > 0) return skill.examples[0];
     return skill.description ?? skill.name;
@@ -48,22 +66,22 @@ export function ConversationPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
         {messages.length === 0 && (
           <div className="pt-3 space-y-4">
             {skills.length > 0 ? (
               <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
                   Agent Skills ({skills.length})
                 </p>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {skills.map((skill) => (
                     <button
                       key={skill.id}
                       onClick={() => handleSend(skillPrompt(skill), skill.id)}
                       disabled={isProcessing}
                       title={skill.description}
-                      className="text-left text-xs text-gray-700 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg px-3 py-2 transition-colors disabled:opacity-50 leading-tight"
+                      className="text-left text-sm text-gray-700 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-xl px-3.5 py-2.5 transition-colors disabled:opacity-50 leading-snug"
                     >
                       {skill.name}
                     </button>
@@ -72,11 +90,11 @@ export function ConversationPanel() {
               </div>
             ) : (
               <div className="text-center pt-6">
-                <p className="text-xs text-gray-400">No skills available from this broker.</p>
-                <p className="text-[11px] text-gray-300 mt-1">Type a prompt below to interact directly.</p>
+                <p className="text-sm text-gray-400">No skills available from this broker.</p>
+                <p className="text-xs text-gray-300 mt-1.5">Type a prompt below to interact directly.</p>
               </div>
             )}
-            <p className="text-[11px] text-gray-400 text-center pt-1">
+            <p className="text-xs text-gray-400 text-center pt-1">
               or type a custom prompt below
             </p>
           </div>
@@ -97,7 +115,7 @@ export function ConversationPanel() {
                 />
               ))}
             </span>
-            <span className="text-xs text-gray-400">{currentStep}</span>
+            <span className="text-sm text-gray-400">{currentStep}</span>
           </div>
         )}
         <div ref={bottomRef} />
@@ -112,7 +130,7 @@ export function ConversationPanel() {
                 key={skill.id}
                 onClick={() => setInput(skillPrompt(skill))}
                 disabled={isProcessing}
-                className="shrink-0 text-[11px] text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50 whitespace-nowrap"
+                className="shrink-0 text-xs text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 rounded-full px-3 py-1 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
                 {skill.name}
               </button>
@@ -123,22 +141,23 @@ export function ConversationPanel() {
 
       {/* Input */}
       <div className="border-t border-gray-200 px-3 py-3">
-        <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all">
+        <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3.5 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all">
           <textarea
+            ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKey}
             placeholder="Ask the broker..."
-            rows={1}
             disabled={isProcessing}
-            className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 resize-none outline-none min-h-[24px] max-h-[96px] leading-6 disabled:opacity-50"
+            style={{ height: 'auto', minHeight: '40px', maxHeight: '200px' }}
+            className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 resize-none outline-none leading-relaxed overflow-y-auto disabled:opacity-50"
           />
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || isProcessing}
-            className="flex-shrink-0 w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+            className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors mb-0.5"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
               <path d="M2 10L10 6L2 2V5.5L7.5 6L2 6.5V10Z" fill="white" />
             </svg>
           </button>
@@ -154,14 +173,14 @@ function MessageBubble({ message }: { message: Message }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+        className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
           isUser
             ? 'bg-blue-600 text-white rounded-br-sm'
             : 'bg-gray-50 text-gray-900 rounded-bl-sm border border-gray-200'
         }`}
       >
         {!isUser && message.agentName && (
-          <p className="text-[10px] text-blue-500 font-semibold mb-1 tracking-wide uppercase">{message.agentName}</p>
+          <p className="text-[11px] text-blue-500 font-semibold mb-1.5 tracking-wide uppercase">{message.agentName}</p>
         )}
         {message.content}
       </div>

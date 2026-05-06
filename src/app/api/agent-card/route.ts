@@ -13,6 +13,35 @@ function isAgentCard(data: unknown): data is AgentCard {
   return 'name' in obj || 'skills' in obj || 'description' in obj;
 }
 
+function buildCandidates(brokerUrl: string): string[] {
+  const base = brokerUrl.replace(/\/$/, '');
+  let origin = base;
+  try {
+    origin = new URL(brokerUrl).origin;
+  } catch { /* use base */ }
+
+  const paths = [
+    // Path-relative well-known (A2A spec variants)
+    `${base}/.well-known/agent.json`,
+    `${base}/.well-known/agent`,
+    `${base}/.well-known/agents`,
+    `${base}/.well-known/agents.json`,
+    // Origin-level well-known (more common for hosted brokers)
+    `${origin}/.well-known/agent.json`,
+    `${origin}/.well-known/agent`,
+    `${origin}/.well-known/agents`,
+    `${origin}/.well-known/agents.json`,
+    // Direct endpoint probes
+    base,
+    `${base}/agent-card`,
+    `${base}/info`,
+    `${base}/metadata`,
+  ];
+
+  // Deduplicate while preserving order
+  return [...new Set(paths)];
+}
+
 export async function GET(req: NextRequest) {
   const brokerUrl = req.nextUrl.searchParams.get('url');
   if (!brokerUrl) {
@@ -24,13 +53,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cache.get(brokerUrl));
   }
 
-  const base = brokerUrl.replace(/\/$/, '');
-  const candidates = [
-    `${base}/.well-known/agent.json`,
-    base,
-    `${base}/agent-card`,
-    `${base}/info`,
-  ];
+  const candidates = buildCandidates(brokerUrl);
 
   for (const endpoint of candidates) {
     try {
@@ -50,13 +73,17 @@ export async function GET(req: NextRequest) {
       try { parsed = JSON.parse(text); } catch { continue; }
 
       if (isAgentCard(parsed)) {
-        cache.set(brokerUrl, parsed as AgentCard);
-        return NextResponse.json(parsed);
+        const card = parsed as AgentCard;
+        cache.set(brokerUrl, card);
+        return NextResponse.json(card);
       }
     } catch {
       // Timeout or network error — try next candidate
     }
   }
 
-  return NextResponse.json({ error: 'Agent card not discoverable from this endpoint' }, { status: 404 });
+  return NextResponse.json(
+    { error: 'Agent card not discoverable from this endpoint', tried: candidates.length },
+    { status: 404 },
+  );
 }
