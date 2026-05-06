@@ -9,34 +9,39 @@ A live demo application that visualizes AI-powered agent orchestration using the
 ## What It Does
 
 ```
-User → Agent Broker → [ERP Agent, CRM Agent, Search Agent, ...]
-                                    ↓
-                            Synthesized Response
+User → Agent Broker → [Inventory Agent, Google Search Agent, ...]
+                                   ↓
+                           Synthesized Response
 ```
 
 1. User enters a Broker URL and clicks **Load Broker**
-2. The app sends a discovery message to the broker and parses available agents
-3. The ReactFlow graph renders dynamically based on what the broker returns
-4. User sends a natural language query
-5. The broker routes it to relevant agents, which respond in parallel
-6. The final response appears in the chat — clean, no raw JSON
+2. The app discovers available agents and skills from `/.well-known/agent-card.json`
+3. A dynamic node graph renders: User → Broker → one node per skill
+4. User sends a query (or clicks a skill button)
+5. The flow animates step-by-step: each node lights up as it processes
+6. The final response appears in the chat with a **Skill used** attribution badge
 
 ---
 
-## Stack
+## Features
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router, Turbopack) |
-| UI | React 19 + Tailwind CSS 4 |
-| Graph | ReactFlow 11 |
-| Animation | Framer Motion 12 |
-| State | Zustand 5 |
-| Deployment | Vercel |
+| Feature | Detail |
+|---------|--------|
+| Dynamic broker discovery | Fetches agent card from `/.well-known/agent-card.json` (MuleSoft/CloudHub) with 14 fallback paths including origin-level well-known and POST-based `agent/info` |
+| Live A2A mode | Proxies real `message/send` JSON-RPC 2.0 requests through `/api/broker` — handles CORS |
+| Simulation mode | Full animated flow with configurable latency and error injection |
+| Step-by-step flow animation | User → Broker → Agent(s) → Broker → User, each node glows in sequence |
+| Skill → node routing | Clicking a skill button routes to and highlights that specific agent node |
+| Skill attribution badge | Every response shows which skill/agent handled the query as a color-coded pill |
+| Skills tab | Lists all broker skills with description, tags, examples, and linked agent node |
+| Refresh broker | Re-fetches metadata with cache-bust and updates graph/agents/skills without resetting the session |
+| Drag-to-resize panel | Right sidebar resizable from 260px to 600px via 16px drag handle |
+| Trace panel | Real-time event log of all routing, API calls, and responses with configurable verbosity |
+| Official MuleSoft branding | MuleSoft from Salesforce logo, robot avatar in chat, favicon |
 
 ---
 
-## Protocol
+## A2A Protocol
 
 The app communicates with any broker that speaks **A2A (Agent-to-Agent) JSON-RPC 2.0**:
 
@@ -59,35 +64,30 @@ Content-Type: application/json
 }
 ```
 
-Supports two A2A response formats:
-- `result.artifacts[].parts[].text` (MuleSoft agent network format)
-- `result.message.parts[].text` (standard A2A format)
+### Response Extraction
+
+The broker parser handles all known A2A response formats in priority order:
+
+| Format | Path |
+|--------|------|
+| A2A Task (MuleSoft) | `result.artifacts[].parts[].text` |
+| A2A Message (newer spec) | `result.parts[].text` |
+| Nested message | `result.message.parts[].text` |
+| Status message | `result.status.message.parts[].text` |
+| Plain string fields | `result.response`, `result.answer`, `result.text`, etc. |
 
 ---
 
-## Features
+## Stack
 
-### Dynamic Agent Discovery
-When a broker URL is loaded, the app sends a capabilities discovery message. Agent names are parsed from the response using pattern matching. If discovery fails or returns no parseable agents, the app falls back to context-aware defaults based on URL keywords (energy, finance, HR, etc.).
-
-### Live Broker Mode vs Simulation
-- **Live mode** — paste your broker URL; all queries go through your real broker via a server-side proxy (`/api/broker`) that handles CORS
-- **Simulation mode** — keyword-based routing with canned responses for demos without a live broker
-
-### Graph Visualization
-- Nodes: User → Broker → discovered agents (dynamically positioned)
-- Edges animate when a node is active
-- Nodes float with subtle per-node staggered animation (Framer Motion)
-- Active nodes pulse with a blue glow
-
-### Resizable Sidebar
-Drag the handle between the graph and sidebar. Resizes between 260px and 600px. State persists during the session.
-
-### Agent Skills
-Predefined prompt templates for common enterprise queries (Check Inventory, Retrieve Customer Info, Analyze Billing Issue, etc.) — available as a grid when the chat is empty, and as a quick-fill chip row once the conversation starts.
-
-### Trace Panel
-Every broker call, routing decision, and response is logged with timestamps. Verbosity is configurable (low / medium / high).
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router, Turbopack) |
+| UI | React 19 + Tailwind CSS 4 |
+| Graph | ReactFlow 11 |
+| Animation | Framer Motion 12 |
+| State | Zustand 5 |
+| Deployment | Vercel |
 
 ---
 
@@ -107,47 +107,39 @@ Open http://localhost:3000. No environment variables required — the broker URL
 ```
 src/
 ├── app/
-│   ├── api/broker/route.ts   # Server-side proxy — handles CORS, A2A formatting
-│   ├── page.tsx              # Main layout — two states: BrokerSetup / App
+│   ├── api/
+│   │   ├── broker/route.ts       # A2A proxy — CORS, JSON-RPC formatting, response extraction
+│   │   └── agent-card/route.ts   # Agent card discovery — 14 endpoint candidates, in-memory cache
+│   ├── icon.png                  # Browser tab favicon
+│   ├── page.tsx                  # Main layout — BrokerSetup / App, drag-to-resize
 │   ├── layout.tsx
 │   └── globals.css
 ├── components/
-│   ├── AgentGraph.tsx        # ReactFlow graph — dynamic nodes and edges
-│   ├── AgentNode.tsx         # Custom node — Framer Motion animations
-│   ├── BrokerSetup.tsx       # Onboarding — URL input, discovery, node building
-│   ├── ConversationPanel.tsx # Chat UI — skills grid, message bubbles
-│   ├── SettingsPanel.tsx     # LLM selection, simulation toggles, verbosity
-│   ├── Sidebar.tsx           # Tabbed panel — Chat / Trace / Settings
-│   └── TracePanel.tsx        # Event log
+│   ├── AgentGraph.tsx            # ReactFlow graph — dynamic nodes, animated edges
+│   ├── AgentNode.tsx             # Custom node — Framer Motion pulse on active
+│   ├── BrokerSetup.tsx           # Onboarding — URL input, discovery, node building
+│   ├── ConversationPanel.tsx     # Chat UI — skills grid, message bubbles, skill attribution
+│   ├── SkillsPanel.tsx           # Skills tab — name, description, linked agent, tags, example
+│   ├── SettingsPanel.tsx         # Simulation toggles, verbosity, connection info
+│   ├── Sidebar.tsx               # Tabbed panel — Chat / Skills / Trace / Settings
+│   └── TracePanel.tsx            # Real-time event log
 ├── lib/
-│   ├── simulation.ts         # Simulation engine + real broker call logic
-│   └── types.ts              # Shared types (AgentNodeData, Message, TraceEvent)
+│   ├── broker.ts                 # Shared broker loading logic (fetchBrokerData, buildAgentNodes)
+│   ├── simulation.ts             # Simulation engine + real broker call + flow animation
+│   └── types.ts                  # Shared types (AgentNodeData, Message, MessageAttribution, ...)
 └── store/
-    └── index.ts              # Zustand store — agents, messages, trace, UI state
+    └── index.ts                  # Zustand store — agents, messages, skills, trace, UI state
 ```
 
 ---
 
-## API Proxy
+## API Routes
 
-All broker calls go through `/api/broker` (Next.js server route) to avoid CORS issues:
+### `POST /api/broker`
+Server-side A2A proxy. Accepts `{ message, brokerUrl }`, wraps in JSON-RPC 2.0, forwards to broker, extracts text from response.
 
-```
-Browser → /api/broker → Your Broker URL
-```
-
-The proxy wraps the query in A2A JSON-RPC 2.0 format, extracts clean response text from the broker's reply (handles both artifact and message formats), and returns `{ response: string, raw: unknown }` to the client.
-
----
-
-## Deployment
-
-```bash
-npm i -g vercel
-vercel --prod
-```
-
-No environment variables needed — the broker URL is runtime-configurable.
+### `GET /api/agent-card?url=...`
+Discovers the broker's agent card. Tries 14 endpoint candidates in order (path-relative and origin-level `.well-known/agent-card.json`, `.well-known/agent.json`, and variants). Falls back to POST-based `agent/info` discovery. Caches results in-memory; pass `?refresh=1` to bust the cache.
 
 ---
 
@@ -159,4 +151,19 @@ The reference broker used in development:
 https://agent-network-ingress-gw-m3oxt6.dzpv27.usa-e2.cloudhub.io/energy-agent-network-demo/
 ```
 
-A MuleSoft-hosted energy agent network with ERP inventory, CRM account, and market search agents.
+A MuleSoft-hosted energy agent network with two skills:
+- **Inventory and Distribution Skill** — SAP ERP inventory queries, sales orders, deliveries
+- **Google Search Skill** — live web search for energy market data
+
+Agent card at: `{broker-url}/.well-known/agent-card.json`
+
+---
+
+## Deployment
+
+```bash
+npm i -g vercel
+vercel --prod
+```
+
+No environment variables needed. The broker URL is runtime-configurable via the Load Broker screen.
