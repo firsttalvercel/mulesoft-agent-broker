@@ -19,15 +19,16 @@ export function ConversationPanel() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing]);
 
-  async function handleSend(text?: string) {
+  async function handleSend(text?: string, skillId?: string) {
     const msg = (text ?? input).trim();
     if (!msg || isProcessing) return;
     setInput('');
     addMessage({ role: 'user', content: msg });
+    const preferredAgentId = skillId ? `skill-${skillId}` : undefined;
     if (brokerUrl.trim()) {
-      await callRealBroker(msg, brokerUrl.trim());
+      await callRealBroker(msg, brokerUrl.trim(), preferredAgentId);
     } else {
-      await runSimulation(msg);
+      await runSimulation(msg, preferredAgentId);
     }
   }
 
@@ -59,7 +60,7 @@ export function ConversationPanel() {
                   {skills.map((skill) => (
                     <button
                       key={skill.id}
-                      onClick={() => handleSend(skillPrompt(skill))}
+                      onClick={() => handleSend(skillPrompt(skill), skill.id)}
                       disabled={isProcessing}
                       title={skill.description}
                       className="text-left text-xs text-gray-700 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg px-3 py-2 transition-colors disabled:opacity-50 leading-tight"
