@@ -1,14 +1,6 @@
 import { create } from 'zustand';
 import { Message, AgentNodeData, TraceEvent, SidebarTab } from '@/lib/types';
 
-const initialAgents: AgentNodeData[] = [
-  { id: 'gemini', name: 'Gemini 2.5 Flash', status: 'idle', type: 'llm', description: 'LLM provider powering the broker' },
-  { id: 'energy-broker', name: 'Energy Broker', status: 'idle', type: 'broker', description: 'Orchestrates routing between agents' },
-  { id: 'erp-agent', name: 'ERP Inventory Agent', status: 'idle', type: 'agent', description: 'SAP ERP Sales & Inventory Management' },
-  { id: 'crm-agent', name: 'CRM Account Agent', status: 'idle', type: 'agent', description: 'Salesforce CRM Account Management' },
-  { id: 'google-mcp', name: 'Google Search MCP', status: 'idle', type: 'mcp', description: 'Google search via MCP protocol' },
-];
-
 interface AppState {
   messages: Message[];
   agents: AgentNodeData[];
@@ -23,8 +15,11 @@ interface AppState {
   verbosity: 'low' | 'medium' | 'high';
   brokerUrl: string;
   brokerLoaded: boolean;
+  sidebarWidth: number;
+  setAgents: (agents: AgentNodeData[]) => void;
   setBrokerUrl: (url: string) => void;
   setBrokerLoaded: (val: boolean) => void;
+  setSidebarWidth: (width: number) => void;
   addMessage: (msg: Omit<Message, 'id' | 'timestamp'>) => void;
   addTraceEvent: (event: Omit<TraceEvent, 'id' | 'timestamp'>) => void;
   setAgentStatus: (agentId: string, status: AgentNodeData['status']) => void;
@@ -42,7 +37,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   messages: [],
-  agents: initialAgents,
+  agents: [],
   activeAgentId: null,
   traceEvents: [],
   isProcessing: false,
@@ -54,7 +49,12 @@ export const useAppStore = create<AppState>((set) => ({
   verbosity: 'medium',
   brokerUrl: '',
   brokerLoaded: false,
+  sidebarWidth: 320,
 
+  setAgents: (agents) => set({ agents }),
+  setBrokerUrl: (url) => set({ brokerUrl: url }),
+  setBrokerLoaded: (val) => set({ brokerLoaded: val }),
+  setSidebarWidth: (width) => set({ sidebarWidth: width }),
   addMessage: (msg) => set((s) => ({
     messages: [...s.messages, { ...msg, id: crypto.randomUUID(), timestamp: new Date() }],
   })),
@@ -72,8 +72,6 @@ export const useAppStore = create<AppState>((set) => ({
   setSimulateLatency: (val) => set({ simulateLatency: val }),
   setSimulateErrors: (val) => set({ simulateErrors: val }),
   setVerbosity: (val) => set({ verbosity: val }),
-  setBrokerUrl: (url) => set({ brokerUrl: url }),
-  setBrokerLoaded: (val) => set({ brokerLoaded: val }),
   resetAgentStatuses: () => set((s) => ({
     agents: s.agents.map((a) => ({ ...a, status: 'idle' })),
     activeAgentId: null,

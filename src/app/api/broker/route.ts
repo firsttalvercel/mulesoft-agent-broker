@@ -6,9 +6,26 @@ function extractTextFromA2AResponse(data: unknown): string {
   if (typeof data === 'object' && data !== null) {
     const obj = data as Record<string, unknown>;
 
-    // A2A / JSON-RPC 2.0 format: result.message.parts[].text
     const result = obj.result as Record<string, unknown> | undefined;
     if (result) {
+      // A2A artifact format: result.artifacts[].parts[].text  (real broker format)
+      const artifacts = result.artifacts as Array<Record<string, unknown>> | undefined;
+      if (Array.isArray(artifacts) && artifacts.length > 0) {
+        const texts: string[] = [];
+        for (const artifact of artifacts) {
+          const parts = artifact.parts as Array<Record<string, unknown>> | undefined;
+          if (Array.isArray(parts)) {
+            for (const part of parts) {
+              if (part.kind === 'text' && typeof part.text === 'string') {
+                texts.push(part.text);
+              }
+            }
+          }
+        }
+        if (texts.length > 0) return texts.join('\n');
+      }
+
+      // A2A message format: result.message.parts[].text
       const msg = result.message as Record<string, unknown> | undefined;
       if (msg) {
         const parts = msg.parts as Array<Record<string, unknown>> | undefined;
@@ -18,31 +35,21 @@ function extractTextFromA2AResponse(data: unknown): string {
             .map((p) => p.text as string);
           if (texts.length > 0) return texts.join('\n');
         }
-        // result.message.content (alternative)
         if (typeof msg.content === 'string') return msg.content;
       }
 
-      // result.parts[] directly
-      const resultParts = result.parts as Array<Record<string, unknown>> | undefined;
-      if (Array.isArray(resultParts)) {
-        const texts = resultParts
-          .filter((p) => p.kind === 'text' && typeof p.text === 'string')
-          .map((p) => p.text as string);
-        if (texts.length > 0) return texts.join('\n');
-      }
-
-      // result as a plain string field
+      // result as plain string field
       for (const key of ['response', 'answer', 'output', 'text', 'content', 'reply']) {
         if (typeof result[key] === 'string') return result[key] as string;
       }
     }
 
-    // Flat response: common field names
+    // Flat response
     for (const key of ['response', 'answer', 'output', 'text', 'content', 'reply', 'message']) {
       if (typeof obj[key] === 'string') return obj[key] as string;
     }
 
-    return JSON.stringify(data, null, 2);
+    return 'The broker returned a response in an unrecognized format.';
   }
 
   return String(data);

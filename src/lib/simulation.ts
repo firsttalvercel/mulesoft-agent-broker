@@ -1,72 +1,7 @@
 import { useAppStore } from '@/store';
+import { AgentNodeData } from '@/lib/types';
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
-export async function callRealBroker(userMessage: string, brokerUrl: string) {
-  const { addTraceEvent, addMessage, setAgentStatus, setActiveAgent, setProcessing, setCurrentStep, resetAgentStatuses } =
-    useAppStore.getState();
-
-  setProcessing(true);
-  resetAgentStatuses();
-
-  setCurrentStep('Routing to broker...');
-  setAgentStatus('gemini', 'active');
-  setActiveAgent('gemini');
-  addTraceEvent({ type: 'routing', agentId: 'gemini', agentName: 'LLM', message: 'Query received — forwarding to broker.' });
-  await delay(300);
-  setAgentStatus('gemini', 'complete');
-
-  setAgentStatus('energy-broker', 'active');
-  setActiveAgent('energy-broker');
-  setCurrentStep('Calling broker...');
-  addTraceEvent({ type: 'api_call', agentId: 'energy-broker', agentName: 'Energy Broker', message: `POST ${brokerUrl}` });
-
-  try {
-    const res = await fetch('/api/broker', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: userMessage, brokerUrl }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      throw new Error(err.error ?? `HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-    const responseText: string = data.response;
-
-    setAgentStatus('energy-broker', 'complete');
-    addTraceEvent({ type: 'response', agentId: 'energy-broker', agentName: 'Energy Broker', message: 'Response received from broker.' });
-    addMessage({ role: 'agent', content: responseText, agentId: 'energy-broker', agentName: 'Energy Broker' });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    setAgentStatus('energy-broker', 'error');
-    addTraceEvent({ type: 'error', agentId: 'energy-broker', agentName: 'Energy Broker', message: `Error: ${msg}` });
-    addMessage({ role: 'agent', content: `Broker call failed: ${msg}`, agentId: 'energy-broker', agentName: 'Energy Broker' });
-  }
-
-  setCurrentStep('');
-  setActiveAgent(null);
-  setProcessing(false);
-
-  await delay(2000);
-  resetAgentStatuses();
-}
-
-const ERP_KEYWORDS = ['inventory', 'stock', 'erp', 'sap', 'order', 'orders', 'product', 'supply', 'warehouse', 'shipment'];
-const CRM_KEYWORDS = ['account', 'customer', 'crm', 'salesforce', 'lead', 'contact', 'opportunity', 'deal', 'client', 'pipeline'];
-const MCP_KEYWORDS = ['search', 'google', 'find', 'web', 'news', 'latest', 'price', 'market', 'energy', 'tariff'];
-
-function detectAgents(text: string): string[] {
-  const lower = text.toLowerCase();
-  const targets: string[] = [];
-  if (ERP_KEYWORDS.some((k) => lower.includes(k))) targets.push('erp-agent');
-  if (CRM_KEYWORDS.some((k) => lower.includes(k))) targets.push('crm-agent');
-  if (MCP_KEYWORDS.some((k) => lower.includes(k))) targets.push('google-mcp');
-  if (targets.length === 0) targets.push('erp-agent', 'crm-agent');
-  return targets;
-}
 
 const ERP_RESPONSES: Record<string, string> = {
   default: 'ERP data retrieved: 3 active supply contracts, 847 MWh available in Q3. Inventory buffers at 94% capacity across Northern Europe nodes.',
@@ -86,37 +21,112 @@ const MCP_RESPONSES: Record<string, string> = {
   market: 'Google Search: Carbon allowance prices at €67.3/t CO2 (EUA futures). Analysts expect €75/t by Q4 2026 on tightening supply.',
 };
 
-function getAgentResponse(agentId: string, query: string): string {
+function getAgentResponse(agent: AgentNodeData, query: string): string {
   const lower = query.toLowerCase();
-  if (agentId === 'erp-agent') {
+  const nameLower = agent.name.toLowerCase();
+  if (nameLower.includes('erp') || nameLower.includes('inventory') || nameLower.includes('sap')) {
     if (lower.includes('inventory') || lower.includes('stock')) return ERP_RESPONSES.inventory;
     if (lower.includes('order')) return ERP_RESPONSES.order;
     return ERP_RESPONSES.default;
   }
-  if (agentId === 'crm-agent') {
+  if (nameLower.includes('crm') || nameLower.includes('account') || nameLower.includes('customer') || nameLower.includes('salesforce')) {
     if (lower.includes('account') || lower.includes('customer')) return CRM_RESPONSES.account;
     if (lower.includes('lead')) return CRM_RESPONSES.lead;
     return CRM_RESPONSES.default;
   }
-  if (agentId === 'google-mcp') {
+  if (nameLower.includes('search') || nameLower.includes('market') || nameLower.includes('mcp') || nameLower.includes('google')) {
     if (lower.includes('energy') || lower.includes('price') || lower.includes('tariff')) return MCP_RESPONSES.energy;
     if (lower.includes('market') || lower.includes('carbon')) return MCP_RESPONSES.market;
     return MCP_RESPONSES.default;
   }
-  return 'Agent response received.';
+  return `${agent.name} processed the request and returned results for: "${query.slice(0, 60)}${query.length > 60 ? '...' : ''}".`;
 }
 
-function synthesizeResponse(agentResults: { agentName: string; result: string }[], query: string): string {
-  if (agentResults.length === 1) {
-    return `Based on the ${agentResults[0].agentName} data: ${agentResults[0].result}`;
+function detectTargetAgents(text: string, agents: AgentNodeData[]): AgentNodeData[] {
+  const lower = text.toLowerCase();
+  const subAgents = agents.filter((a) => a.type === 'agent' || a.type === 'mcp');
+
+  const hits = subAgents.filter((agent) => {
+    const words = agent.name.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    return words.some((w) => lower.includes(w));
+  });
+
+  if (hits.length === 0) return subAgents.slice(0, Math.min(2, subAgents.length));
+  return hits;
+}
+
+function synthesizeResponse(results: { agentName: string; result: string }[], query: string): string {
+  if (results.length === 1) {
+    return `Based on the ${results[0].agentName} data:\n\n${results[0].result}`;
   }
-  const parts = agentResults.map((r) => `**${r.agentName}**: ${r.result}`).join('\n\n');
-  return `I've gathered data from ${agentResults.length} sources to answer your query about "${query.slice(0, 60)}${query.length > 60 ? '...' : ''}":\n\n${parts}\n\nSummary: All systems nominal. The broker has cross-referenced the data — no conflicts detected. Ready for your next query.`;
+  const parts = results.map((r) => `**${r.agentName}**\n${r.result}`).join('\n\n');
+  return `I've gathered data from ${results.length} sources for your query about "${query.slice(0, 60)}${query.length > 60 ? '...' : ''}":\n\n${parts}\n\nAll systems nominal — no conflicts detected.`;
+}
+
+export async function callRealBroker(userMessage: string, brokerUrl: string) {
+  const store = useAppStore.getState();
+  const { agents, addTraceEvent, addMessage, setAgentStatus, setActiveAgent, setProcessing, setCurrentStep, resetAgentStatuses } = store;
+
+  const userAgent = agents.find((a) => a.type === 'user');
+  const brokerAgent = agents.find((a) => a.type === 'broker');
+  if (!brokerAgent) return;
+
+  setProcessing(true);
+  resetAgentStatuses();
+
+  if (userAgent) {
+    setCurrentStep('Sending query...');
+    setAgentStatus(userAgent.id, 'active');
+    setActiveAgent(userAgent.id);
+    addTraceEvent({ type: 'routing', agentId: userAgent.id, agentName: userAgent.name, message: 'Query submitted.' });
+    await delay(300);
+    setAgentStatus(userAgent.id, 'complete');
+  }
+
+  setAgentStatus(brokerAgent.id, 'active');
+  setActiveAgent(brokerAgent.id);
+  setCurrentStep('Calling broker...');
+  addTraceEvent({ type: 'api_call', agentId: brokerAgent.id, agentName: brokerAgent.name, message: `POST ${brokerUrl}` });
+
+  try {
+    const res = await fetch('/api/broker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userMessage, brokerUrl }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(err.error ?? `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const responseText: string = data.response;
+
+    setAgentStatus(brokerAgent.id, 'complete');
+    addTraceEvent({ type: 'response', agentId: brokerAgent.id, agentName: brokerAgent.name, message: 'Response received.' });
+    addMessage({ role: 'agent', content: responseText, agentId: brokerAgent.id, agentName: brokerAgent.name });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    setAgentStatus(brokerAgent.id, 'error');
+    addTraceEvent({ type: 'error', agentId: brokerAgent.id, agentName: brokerAgent.name, message: `Error: ${msg}` });
+    addMessage({ role: 'agent', content: `Broker call failed: ${msg}`, agentId: brokerAgent.id, agentName: brokerAgent.name });
+  }
+
+  setCurrentStep('');
+  setActiveAgent(null);
+  setProcessing(false);
+  await delay(2000);
+  resetAgentStatuses();
 }
 
 export async function runSimulation(userMessage: string) {
   const store = useAppStore.getState();
-  const { simulateLatency, simulateErrors, verbosity, addTraceEvent, addMessage, setAgentStatus, setActiveAgent, setProcessing, setCurrentStep, resetAgentStatuses } = store;
+  const { agents, simulateLatency, simulateErrors, verbosity, addTraceEvent, addMessage, setAgentStatus, setActiveAgent, setProcessing, setCurrentStep, resetAgentStatuses } = store;
+
+  const userAgent = agents.find((a) => a.type === 'user');
+  const brokerAgent = agents.find((a) => a.type === 'broker');
+  if (!brokerAgent) return;
 
   const fast = !simulateLatency;
   const step = fast ? 80 : 600;
@@ -129,74 +139,64 @@ export async function runSimulation(userMessage: string) {
   setProcessing(true);
   resetAgentStatuses();
 
-  // Step 1: LLM receives and processes
-  setCurrentStep('LLM processing query...');
-  setAgentStatus('gemini', 'active');
-  setActiveAgent('gemini');
-  trace('api_call', 'gemini', 'Gemini 2.5 Flash', `Received query: "${userMessage.slice(0, 80)}..."`);
+  // Step 1: User node
+  if (userAgent) {
+    setCurrentStep('Sending query...');
+    setAgentStatus(userAgent.id, 'active');
+    setActiveAgent(userAgent.id);
+    trace('api_call', userAgent.id, userAgent.name, `Query: "${userMessage.slice(0, 80)}${userMessage.length > 80 ? '...' : ''}"`);
+    await delay(step * 0.6);
+    setAgentStatus(userAgent.id, 'complete');
+  }
+
+  // Step 2: Broker routes
+  await delay(step / 3);
+  setCurrentStep('Broker routing...');
+  setAgentStatus(brokerAgent.id, 'active');
+  setActiveAgent(brokerAgent.id);
+  trace('routing', brokerAgent.id, brokerAgent.name, 'Analyzing intent and selecting target agents...');
   await delay(step);
 
   if (simulateErrors && Math.random() < 0.1) {
-    trace('error', 'gemini', 'Gemini 2.5 Flash', 'Rate limit encountered — retrying...');
+    trace('error', brokerAgent.id, brokerAgent.name, 'Rate limit encountered — retrying...');
     await delay(step / 2);
   }
 
-  trace('routing', 'gemini', 'Gemini 2.5 Flash', 'Intent classified. Routing decision delegated to Energy Broker.');
-  setAgentStatus('gemini', 'complete');
+  const targetAgents = detectTargetAgents(userMessage, agents);
+  trace('routing', brokerAgent.id, brokerAgent.name, `Routing to: ${targetAgents.map((a) => a.name).join(', ')}`, { targets: targetAgents.map((a) => a.id) });
 
-  // Step 2: Broker activates and routes
-  await delay(step / 3);
-  setCurrentStep('Broker routing to agents...');
-  setAgentStatus('energy-broker', 'active');
-  setActiveAgent('energy-broker');
-  trace('routing', 'energy-broker', 'Energy Broker', 'Analyzing query intent and selecting target agents...');
-  await delay(step);
-
-  const targetAgents = detectAgents(userMessage);
-  const agentNames: Record<string, string> = {
-    'erp-agent': 'ERP Inventory Agent',
-    'crm-agent': 'CRM Account Agent',
-    'google-mcp': 'Google Search MCP',
-  };
-
-  trace('routing', 'energy-broker', 'Energy Broker', `Routing to: ${targetAgents.map((id) => agentNames[id]).join(', ')}`, { targets: targetAgents });
-
-  // Step 3: Each agent runs
+  // Step 3: Each sub-agent runs
   const agentResults: { agentName: string; result: string }[] = [];
 
-  for (const agentId of targetAgents) {
-    const agentName = agentNames[agentId];
-    setCurrentStep(`${agentName} running...`);
-    setAgentStatus(agentId, 'active');
-    setActiveAgent(agentId);
-    trace('api_call', agentId, agentName, `Processing request...`);
+  for (const agent of targetAgents) {
+    setCurrentStep(`${agent.name} running...`);
+    setAgentStatus(agent.id, 'active');
+    setActiveAgent(agent.id);
+    trace('api_call', agent.id, agent.name, 'Processing request...');
     await delay(step * 1.2);
 
-    const result = getAgentResponse(agentId, userMessage);
-    trace('response', agentId, agentName, result);
-    setAgentStatus(agentId, 'complete');
-    agentResults.push({ agentName, result });
+    const result = getAgentResponse(agent, userMessage);
+    trace('response', agent.id, agent.name, result);
+    setAgentStatus(agent.id, 'complete');
+    agentResults.push({ agentName: agent.name, result });
     await delay(step / 4);
   }
 
   // Step 4: Broker synthesizes
   setCurrentStep('Synthesizing results...');
-  setAgentStatus('energy-broker', 'active');
-  setActiveAgent('energy-broker');
-  trace('routing', 'energy-broker', 'Energy Broker', 'All agents responded. Synthesizing final answer...');
+  setAgentStatus(brokerAgent.id, 'active');
+  setActiveAgent(brokerAgent.id);
+  trace('routing', brokerAgent.id, brokerAgent.name, 'All agents responded. Synthesizing final answer...');
   await delay(step * 0.8);
-  setAgentStatus('energy-broker', 'complete');
+  setAgentStatus(brokerAgent.id, 'complete');
 
-  // Step 5: Final response
   const finalResponse = synthesizeResponse(agentResults, userMessage);
-  addMessage({ role: 'agent', content: finalResponse, agentId: 'energy-broker', agentName: 'Energy Broker' });
-  trace('response', 'energy-broker', 'Energy Broker', 'Final response delivered to user.');
+  addMessage({ role: 'agent', content: finalResponse, agentId: brokerAgent.id, agentName: brokerAgent.name });
+  trace('response', brokerAgent.id, brokerAgent.name, 'Final response delivered to user.');
 
   setCurrentStep('');
   setActiveAgent(null);
   setProcessing(false);
-
-  // Reset statuses after a short delay
   await delay(2000);
   resetAgentStatuses();
 }
