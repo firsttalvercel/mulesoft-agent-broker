@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, KeyboardEvent } from 'react';
+import Image from 'next/image';
 import { useAppStore } from '@/store';
 import { runSimulation, callRealBroker } from '@/lib/simulation';
 import { Message, MessageAttribution, AgentType } from '@/lib/types';
@@ -170,20 +171,37 @@ export function ConversationPanel() {
 
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === 'user';
+
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[88%] rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-blue-600 text-white">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-          isUser
-            ? 'bg-blue-600 text-white rounded-br-sm'
-            : 'bg-gray-50 text-gray-900 rounded-bl-sm border border-gray-200'
-        }`}
-      >
-        {!isUser && message.agentName && (
+    <div className="flex items-start gap-2.5">
+      {/* Avatar */}
+      <div className="shrink-0 w-9 h-9 rounded-full overflow-hidden border border-blue-100 shadow-sm mt-0.5">
+        <Image
+          src="/broker-avatar.png"
+          alt="Agent"
+          width={36}
+          height={36}
+          className="object-cover w-full h-full"
+        />
+      </div>
+
+      {/* Bubble */}
+      <div className="max-w-[84%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-gray-50 text-gray-900 border border-gray-200">
+        {message.agentName && (
           <p className="text-[11px] text-blue-500 font-semibold mb-1.5 tracking-wide uppercase">{message.agentName}</p>
         )}
         {message.content}
-        {!isUser && message.attribution && message.attribution.length > 0 && (
+        {message.attribution && message.attribution.length > 0 && (
           <AttributionBadge attribution={message.attribution} />
         )}
       </div>
