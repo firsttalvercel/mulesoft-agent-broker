@@ -64,11 +64,49 @@ function extractTextFromA2AResponse(data: unknown): string {
       if (typeof obj[key] === 'string') return obj[key] as string;
     }
 
-    // 7. Last resort: raw JSON (for debugging, stripped to essentials)
+    // 7. JSON-RPC / structured error response
+    if (obj.error && typeof obj.error === 'object') {
+      const err = obj.error as Record<string, unknown>;
+      const errData = typeof err.data === 'string' ? err.data : '';
+      const errMsg = typeof err.message === 'string' ? err.message : '';
+      if (errData.toLowerCase().includes('pii') || errMsg.toLowerCase().includes('pii')) {
+        return PII_ERROR_MESSAGE;
+      }
+      return errMsg || 'The broker returned an error.';
+    }
+
+    // 8. Last resort: raw JSON (for debugging, stripped to essentials)
     return `Broker returned an unrecognized format. Raw: ${JSON.stringify(data).slice(0, 300)}`;
   }
 
   return String(data);
+}
+
+const PII_ERROR_MESSAGE = 'The request contains information that is not allowed. Please remove sensitive details and try again.';
+
+function sanitizePiiError(data: unknown): { sanitized: unknown; isPiiBlocked: boolean } {
+  if (typeof data !== 'object' || data === null) return { sanitized: data, isPiiBlocked: false };
+  const obj = data as Record<string, unknown>;
+  if (!obj.error) return { sanitized: data, isPiiBlocked: false };
+
+  const error = obj.error as Record<string, unknown>;
+  const dataField = typeof error.data === 'string' ? error.data : '';
+  const isPiiError =
+    dataField.toLowerCase().includes('pii') ||
+    (typeof error.message === 'string' && error.message.toLowerCase().includes('pii'));
+
+  if (!isPiiError) return { sanitized: data, isPiiBlocked: false };
+
+  return {
+    sanitized: {
+      ...obj,
+      error: {
+        code: error.code,
+        message: PII_ERROR_MESSAGE,
+      },
+    },
+    isPiiBlocked: true,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -111,9 +149,13 @@ export async function POST(req: NextRequest) {
       parsed = raw;
     }
 
-    const responseText = extractTextFromA2AResponse(parsed);
+    const { sanitized, isPiiBlocked: piiFromSanitize } = sanitizePiiError(parsed);
+    const responseText = piiFromSanitize
+      ? PII_ERROR_MESSAGE
+      : extractTextFromA2AResponse(sanitized);
+    const isPiiBlocked = piiFromSanitize || responseText === PII_ERROR_MESSAGE;
 
-    return NextResponse.json({ response: responseText, raw: parsed });
+    return NextResponse.json({ response: responseText, raw: sanitized, isPiiBlocked });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
