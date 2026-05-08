@@ -182,6 +182,22 @@ function MessageBubble({ message }: { message: Message }) {
     );
   }
 
+  if (message.isError) {
+    return (
+      <div className="flex items-start gap-2.5">
+        <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-red-50 border border-red-200 mt-0.5">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1.5L14.5 13H1.5L8 1.5Z" stroke="#ef4444" strokeWidth="1.5" strokeLinejoin="round"/>
+            <path d="M8 6v3.5M8 11v.5" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <div className="max-w-[84%] rounded-2xl rounded-tl-sm px-4 py-3 bg-red-50 text-red-800 border border-red-200">
+          <p className="text-sm leading-relaxed">{message.content}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-start gap-2.5">
       {/* Avatar */}

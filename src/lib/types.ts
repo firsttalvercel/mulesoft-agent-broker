@@ -38,6 +38,7 @@ export interface Message {
   agentName?: string;
   attribution?: MessageAttribution[];
   timestamp: Date;
+  isError?: boolean;
 }
 
 export interface AgentNodeData {

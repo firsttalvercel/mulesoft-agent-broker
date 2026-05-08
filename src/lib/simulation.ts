@@ -123,14 +123,24 @@ export async function callRealBroker(
     }
     const data = await res.json();
     responseText = data.response;
+    if (data.isPiiBlocked) {
+      callError = '__pii__';
+    }
   } catch (err) {
     callError = err instanceof Error ? err.message : 'Unknown error';
   }
 
   if (callError) {
+    const isPii = callError === '__pii__';
     setAgentStatus(brokerAgent.id, 'error');
-    addTraceEvent({ type: 'error', agentId: brokerAgent.id, agentName: brokerAgent.name, message: `Error: ${callError}` });
-    addMessage({ role: 'agent', content: `Broker call failed: ${callError}`, agentId: brokerAgent.id, agentName: brokerAgent.name });
+    addTraceEvent({ type: 'error', agentId: brokerAgent.id, agentName: brokerAgent.name, message: isPii ? 'Request blocked: PII detected.' : `Error: ${callError}` });
+    addMessage({
+      role: 'agent',
+      content: responseText || (isPii ? 'The request contains information that is not allowed. Please remove sensitive details and try again.' : `Broker call failed: ${callError}`),
+      agentId: brokerAgent.id,
+      agentName: brokerAgent.name,
+      isError: true,
+    });
     setCurrentStep('');
     setActiveAgent(null);
     setProcessing(false);
